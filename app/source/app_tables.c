@@ -1,10 +1,10 @@
 /******************************************************************************
- * GRID2HOME SMART ENERGY 2
+ * KITU SYSTEMS SMART ENERGY 2
  *****************************************************************************/
 /**
- * Copyright (C) 2009 Grid2Home, Inc. All rights reserved.
+ * Copyright (C) 2009 Kitu Systems, Inc. All rights reserved.
  * This source code and any compilation or derivative thereof is the proprietary
- * information of Grid2Home, Inc and is confidential in nature.
+ * information of Kitu Systems, Inc and is confidential in nature.
  *
  * \file          app_tables.c
  *
@@ -23,9 +23,9 @@
    $History: $
  */
 
-#include "psal_assert.h"
-#include "kal_api.h"
 #include "app_tables.h"
+#include "kal_api.h"
+#include "psal_assert.h"
 
 #include "app_client.h"
 #include "app_dcap_client.h"
@@ -38,11 +38,11 @@
 #include "app_fsa_client.h"
 #include "app_meter_mirror_client.h"
 #include "app_sder_client.h"
+#include "app_sdev_client.h"
 #include "app_time_client.h"
 
-
 /*******************************************************************************
- * Extern Defines
+ * Local Defines
  ******************************************************************************/
 extern void app_SdevClientHandleMail(kal_mail_id_t mailId, void *pMail);
 
@@ -54,8 +54,8 @@ typedef void (*mail_func_t)(kal_mail_id_t mailId, void *pMail);
 
 typedef struct
 {
-  timeout_func_t timeoutHandler;
-  mail_func_t    mailHandler;
+    timeout_func_t timeoutHandler;
+    mail_func_t    mailHandler;
 } tables_entry_t;
 
 /*******************************************************************************
@@ -64,111 +64,63 @@ typedef struct
  * - Handle Timeouts Function - Function that is called to handle timeout events
  * - Handle Mail Function - Function that is called to handle mail events
  ******************************************************************************/
-const tables_entry_t appFuncsetTables[] =
-{
+const tables_entry_t appFuncsetTables[] = {
 //  Handle Timeouts Function          Handle Mail Function
 
-#if APP_CONFIG_ECFG_CLIENT_ENABLED
-    {NULLP,                           app_EconfigClientHandleMail      },
-#endif
 #if APP_CONFIG_DCAP_CLIENT_ENABLED
-    {NULLP,                           app_DcapClientHandleMail         },
+    {NULLP, app_DcapClientHandleMail},
 #endif
 #if APP_CONFIG_DER_CLIENT_ENABLED
-    {NULLP,                           app_DerClientHandleMail         },
-#endif
-#if APP_CONFIG_EDSTAT_CLIENT_ENABLED
-    {NULLP,                           app_EdstatClientHandleMail        },
+    {NULLP, app_DerClientHandleMail},
 #endif
 #if APP_CONFIG_EDINFO_CLIENT_ENABLED
-    {NULLP,                           app_EdinfoClientHandleMail       },
-#endif
-#if APP_CONFIG_DRLC_CLIENT_ENABLED
-    {NULLP,                           app_DrlcClientHandleMail        },
+    {NULLP, app_EdinfoClientHandleMail},
 #endif
 #if APP_CONFIG_EDER_CLIENT_ENABLED
-    {NULLP,                           app_EderClientHandleMail        },
+    {NULLP, app_EderClientHandleMail},
 #endif
 #if APP_CONFIG_EDEV_CLIENT_ENABLED
-    {NULLP,                           app_EdevClientHandleMail        },
-#endif
-#if APP_CONFIG_EFILE_CLIENT_ENABLED
-    {NULLP,                           app_EfileClientHandleMail       },
-#endif
-#if APP_CONFIG_FILE_CLIENT_ENABLED
-    {NULLP,                           app_FileClientHandleMail        },
+    {NULLP, app_EdevClientHandleMail},
 #endif
 #if APP_CONFIG_FSA_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
-#endif
-#if APP_CONFIG_FLOW_CLIENT_ENABLED
-    {NULLP,                           app_FlowClientHandleMail        },
-#endif
-#if APP_CONFIG_SLEL_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
-#endif
-#if APP_CONFIG_EDRLC_CLIENT_ENABLED
-    {NULLP,                           app_EdrlcClientHandleMail         },
-#endif
-#if APP_CONFIG_METER_CLIENT_ENABLED
-    {NULLP,                           app_MeterClientHandleMail       },
+    {NULLP, NULLP},
 #endif
 #if APP_CONFIG_METER_MIRROR_CLIENT_ENABLED
-    {NULLP,                           app_MeterMirrorClientHandleMail },
-#endif
-#if APP_CONFIG_MSG_CLIENT_ENABLED
-    {NULLP,                           app_MsgClientHandleMail         },
-#endif
-#if APP_CONFIG_SNS_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
-#endif
-#if APP_CONFIG_NOTIFY_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
-#endif
-#if APP_CONFIG_PPY_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
-#endif
-#if APP_CONFIG_PRICE_CLIENT_ENABLED
-    {NULLP,                           app_PriceClientHandleMail       },
+    {NULLP, app_MeterMirrorClientHandleMail},
 #endif
 #if APP_CONFIG_EPS_CLIENT_ENABLED
-    {NULLP,                           app_EpwrstatClientHandleMail     },
+    {NULLP, app_EpwrstatClientHandleMail},
 #endif
 #if APP_CONFIG_RESP_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
+    {NULLP, NULLP},
 #endif
 #if APP_CONFIG_SDER_CLIENT_ENABLED
-    {NULLP,                           app_SderClientHandleMail        },
+    {NULLP, app_SderClientHandleMail},
 #endif
 #if APP_CONFIG_SDEV_CLIENT_ENABLED
-    {NULLP,                           app_SdevClientHandleMail        },
-#endif
-#if APP_CONFIG_SFILE_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
+    {NULLP, app_SdevClientHandleMail},
 #endif
 #if APP_CONFIG_SUBS_CLIENT_ENABLED
-    {NULLP,                           NULLP                           },
+    {NULLP, NULLP},
 #endif
 #if APP_CONFIG_TIME_CLIENT_ENABLED
-    {NULLP,                           app_TimeClientHandleMail        },
+    {NULLP, app_TimeClientHandleMail},
 #endif
 };
-
 
 /*******************************************************************************
  * APP_HandleMail
  ******************************************************************************/
 void APP_HandleMail(kal_mail_id_t mailId, void *pMail)
 {
-  i8_t x;
-  //debug
-  fprintf(stdout, "<<<<HandleMail app_tables >>>>> 0x%04x \n", mailId);
-  //debug:end
-  for (x=0; x<(sizeof(appFuncsetTables)/sizeof(tables_entry_t)); x++)
-  {
-    if (appFuncsetTables[x].mailHandler != NULLP)
-      (*appFuncsetTables[x].mailHandler)(mailId, pMail);
-  }
+    i8_t x;
+    //debug
+    //fprintf(stdout, "<<<<HandleMail app_tables >>>>> 0x%04x \n", mailId);
+    //debug:end
+    for (size_t x = 0; x < (sizeof(appFuncsetTables) / sizeof(tables_entry_t)); x++)
+    {
+        if (appFuncsetTables[x].mailHandler != NULLP) (*appFuncsetTables[x].mailHandler)(mailId, pMail);
+    }
 }
 
 /*******************************************************************************
@@ -176,11 +128,8 @@ void APP_HandleMail(kal_mail_id_t mailId, void *pMail)
  ******************************************************************************/
 void APP_HandleTimeouts(u32_t eventMask)
 {
-  i8_t x;
-
-  for (x=0; x<(sizeof(appFuncsetTables)/sizeof(tables_entry_t)); x++)
-  {
-    if (appFuncsetTables[x].timeoutHandler != NULLP)
-      (*appFuncsetTables[x].timeoutHandler)(eventMask);
-  }
+    for (size_t x = 0; x < (sizeof(appFuncsetTables) / sizeof(tables_entry_t)); x++)
+    {
+        if (appFuncsetTables[x].timeoutHandler != NULLP) (*appFuncsetTables[x].timeoutHandler)(eventMask);
+    }
 }

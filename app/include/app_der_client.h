@@ -1,10 +1,10 @@
 /******************************************************************************
- * GRID2HOME SMART ENERGY 2
+ * KITU SYSTEMS SMART ENERGY 2
  *****************************************************************************/
 /**
- * Copyright (C) 2009 Grid2Home, Inc. All rights reserved.
+ * Copyright (C) 2009 Kitu Systems, Inc. All rights reserved.
  * This source code and any compilation or derivative thereof is the proprietary
- * information of Grid2Home, Inc and is confidential in nature.
+ * information of Kitu Systems, Inc and is confidential in nature.
  *
  * \file          app_der_client.h
  *
@@ -23,8 +23,8 @@
    $History: $
  */
 
-#ifndef   APP_DER_CLIENT_H
-#define   APP_DER_CLIENT_H
+#ifndef APP_DER_CLIENT_H
+#define APP_DER_CLIENT_H
 
 #include "kal_api.h"
 #include "sl_api.h"
@@ -36,5 +36,4 @@ void app_DerClientHandleMail(kal_mail_id_t mailId, void *pMail);
 void app_DerpPulling(void);
 void app_DercPulling(void);
 
-
-#endif  // APP_DER_CLIENT_H
+#endif // APP_DER_CLIENT_H

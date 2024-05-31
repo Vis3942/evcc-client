@@ -32,10 +32,8 @@
  *                                                                                                *
  **************************************************************************************************/
 
-
 #ifndef APP_COMM_H
 #define APP_COMM_H
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -44,30 +42,20 @@
  **************************************************************************************************/
 #include "psal_types.h"
 
-
-
-
-
-
-
-
 /**************************************************************************************************
  *                                                                                                *
  *  Global Variable Definitions                                                                   *
  *                                                                                                *
  **************************************************************************************************/
-extern u8_t  SL_TaskHandle;
-extern u8_t  gh_taskUplink;
-extern u8_t  gh_taskDownlink;
-
-
+extern u8_t SL_TaskHandle;
+extern u8_t gh_taskUplink;
+extern u8_t gh_taskDownlink;
 
 /**************************************************************************************************
  *                                                                                                *
  *  Function Prototypes                                                                           *
  *                                                                                                *
  **************************************************************************************************/
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -81,7 +69,7 @@ extern u8_t  gh_taskDownlink;
  *                       4) Spawn a child process for the Services Layer process.                 *
  *                       5) Wait until an inbound connection is made (using accept()).            *
  *                       6) Create two KAL tasks for APP_Uplink and APP_Downlink.  See additional *
- *                          documentation pertaining to the Grid2Home Interprocess Communication  *
+ *                          documentation pertaining to the Kitu Systems Interprocess Communication  *
  *                          model for definitions of these tasks.                                 *
  *                       7) Assign the vairable "SL_TaskHandle" to be the same as that of         *
  *                          APP_Downlink.                                                         *
@@ -114,14 +102,6 @@ extern u8_t  gh_taskDownlink;
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-extern void
-APP_CommInit(void);
+extern void APP_CommInit(void);
 
-
-
-
-
-
-
-
-#endif  /* matches #ifndef APP_COMM_H  */
+#endif /* matches #ifndef APP_COMM_H  */

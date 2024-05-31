@@ -73,7 +73,6 @@ set (PLATFORM_SOURCES
     ./kitu_api/source/klnx_task.c
     ./kitu_api/source/klnx_timebase.c
     ./kitu_api/source/klnx_timer.c
-    ./kitu_api/source/fsal_rfs.c
     ./kitu_api/source/psal_port_linux.c
     ./kitu_api/source/psal_failfile.c
     ./kitu_api/source/psal_sighandler.c
@@ -101,13 +100,12 @@ add_definitions (-DAPP_CONFIG_METER_MIRROR_CLIENT_ENABLED=1)
 add_definitions (-DAPP_CONFIG_EPS_CLIENT_ENABLED=1)
 add_definitions (-DAPP_CONFIG_RESP_CLIENT_ENABLED=1)
 add_definitions (-DAPP_CONFIG_TIME_CLIENT_ENABLED=1)
-add_definitions (-DAPP_CONFIG_SDEV_CLIENT_ENABLED=1)
-add_definitions (-DAPP_CONFIG_SDER_CLIENT_ENABLED=1)
 add_definitions (-DOVERRIDE_APP_AUTO_START=1)
 add_definitions (-DOVERRIDE_APP_PRELOAD_DEMO=1)
 add_definitions (-DOVERRIDE_ISAL_CONFIG_VER=ISAL_CONFIG_V4)
 add_definitions (-DOVERRIDE_SL_OVERRIDE_SERVER_ENABLE=0)
 add_definitions (-DOVERRIDE_SL_OVERRIDE_CLIENT_ENABLE=1)
+add_definitions (-DAPP_CONFIG_SDER_CLIENT_ENABLED=1)
 
 # App Process
     add_definitions (-DUSE_SEPARATE_APP_PROCESS)

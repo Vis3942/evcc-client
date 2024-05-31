@@ -4,7 +4,7 @@
 #include "usock_proto.h"
 
 // version definition => byte major version.byte minor version 
-#define EVCC_CLIENT_VERSION 0x0100 // version 1.0
+#define EVCC_CLIENT_VERSION 0x0101 // version 1.1
 
 void evcc_client_version();
 
@@ -19,6 +19,9 @@ void send_test_derc_event(int event_status);
 void send_test_default_derc(bool permit_status);
 void send_test_dersettings(void);
 void displayKALTime(void);
+void read_parameters_from_file(char * param_file_name);
+void simulate_veh_send_mup_req(void);
+void simulate_veh_send_mmr_setup_or_data(int typeof_req, bool sendReading);
 
 extern int opt_test_charge; 
 extern int opt_charge_percent; 
@@ -29,6 +32,13 @@ extern int opt_start_time_from_now_secs;
 extern int opt_duration;
 extern int opt_duration_secs;
 extern int app_task_sec_count;
+extern int opt_simulate_vehicle;
+extern int g_transaction_id;
+
+extern int derp_pull_secs;
+extern int derc_pull_secs;
+extern int derc_pull_offset_secs; // to prevent DERC and 'DERP pull to happen at the same time
+
 #define INIT_SECS_BEFORE_EVENT 30
 #define DDERC_PERIODIC_SECS 45
 extern int opt_event_status;

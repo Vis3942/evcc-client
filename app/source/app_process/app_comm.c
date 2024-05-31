@@ -32,72 +32,59 @@
  *                                                                                                *
  **************************************************************************************************/
 
-
 /**************************************************************************************************
  *                                                                                                *
  *  Header Files                                                                                  *
  *                                                                                                *
  **************************************************************************************************/
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/un.h>
+#include <errno.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/un.h>
 #include <unistd.h>
-#include <errno.h>
+#include <inttypes.h>
 
-#include "psal_assert.h"
-#include "psal_types.h"
 #include "app_comm.h"
 #include "kal_api.h"
-
-
-
-
-
-
-
+#include "psal_assert.h"
+#include "psal_types.h"
 
 /**************************************************************************************************
  *                                                                                                *
  *  Symbolic Constants                                                                            *
  *                                                                                                *
  **************************************************************************************************/
-#define APP_COMM_CHANNEL_NAME                         "g2hipca.socket"
-#define APP_COMM_LENGTH_OF_FRAME_HEADER               (sizeof(u16_t))
-#define APP_COMM_IPC_UPLINK_IND                       (0x8001)
-#define APP_COMM_UNIX_PATH_MAX                        (96)           // UNIX_PATH_MAX is typically 108, if defined.
+#define APP_COMM_CHANNEL_NAME           "g2hipca.socket"
+#define APP_COMM_LENGTH_OF_FRAME_HEADER (sizeof(u16_t))
+#define APP_COMM_IPC_UPLINK_IND         (0x8001)
+#define APP_COMM_UNIX_PATH_MAX          (96) // UNIX_PATH_MAX is typically 108, if defined.
 
-#define APP_COMM_AUTOEXEC_SL                          // Uncomment this to have the APP process execute the SL process
+#define APP_COMM_AUTOEXEC_SL // Uncomment this to have the APP process execute the SL process
 
-#ifdef OVERRIDE_APP_COMM_SL_DM_PORT_NUMBER            // This is the DM port number for the SL process
-#define APP_COMM_SL_DM_PORT_NUMBER                    OVERRIDE_APP_COMM_SL_DM_PORT_NUMBER
+#ifdef OVERRIDE_APP_COMM_SL_DM_PORT_NUMBER // This is the DM port number for the SL process
+#define APP_COMM_SL_DM_PORT_NUMBER OVERRIDE_APP_COMM_SL_DM_PORT_NUMBER
 #else
-#define APP_COMM_SL_DM_PORT_NUMBER                    "12346"
+#define APP_COMM_SL_DM_PORT_NUMBER "12346"
 #endif
 
-#ifdef OVERRIDE_APP_COMM_SL_IP_AUTOSELECT             // This is the auto-selected interface for the SL process
-#define APP_COMM_SL_IP_AUTOSELECT                     OVERRIDE_APP_COMM_SL_IP_AUTOSELECT
+#ifdef OVERRIDE_APP_COMM_SL_IP_AUTOSELECT // This is the auto-selected interface for the SL process
+#define APP_COMM_SL_IP_AUTOSELECT OVERRIDE_APP_COMM_SL_IP_AUTOSELECT
 #else
-#define APP_COMM_SL_IP_AUTOSELECT                     NULL
+#define APP_COMM_SL_IP_AUTOSELECT NULL
 #endif
 
 #ifdef OVERRIDE_APP_NAME_OF_SERVICES_LAYER_EXECUTABLE
-#define APP_NAME_OF_SERVICES_LAYER_EXECUTABLE         OVERRIDE_APP_NAME_OF_SERVICES_LAYER_EXECUTABLE
+#define APP_NAME_OF_SERVICES_LAYER_EXECUTABLE OVERRIDE_APP_NAME_OF_SERVICES_LAYER_EXECUTABLE
 #else
-#define APP_NAME_OF_SERVICES_LAYER_EXECUTABLE         "./sl_api_process"
+#define APP_NAME_OF_SERVICES_LAYER_EXECUTABLE "./sl_api_process"
 #endif
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -109,105 +96,60 @@
  *             Application process.  These are defined in .../apps/sl_process/source/sla_comm.c.  *
  *                                                                                                *
  **************************************************************************************************/
-typedef struct appComm_IpcHeader_s                // Note: this structure does not contain the
-{                                                 //       length of the IPC packet, nor the
-    u16_t                     parmBlockLength;    //       parameter block.
-    kal_mail_id_t             mailId;
-    kal_mail_unique_handle_t  h_uniqueVal;
-}  appComm_IpcHeader_t;
-
+typedef struct appComm_IpcHeader_s            // Note: this structure does not contain the
+{                                             //       length of the IPC packet, nor the
+    u16_t                    parmBlockLength; //       parameter block.
+    kal_mail_id_t            mailId;
+    kal_mail_unique_handle_t h_uniqueVal;
+} appComm_IpcHeader_t;
 
 typedef struct appComm_IpcPacket_s
 {
-    appComm_IpcHeader_t  hdr;
-    u32_t                parmBlock[1];            // Placekeeper for the parameter block.
-}  appComm_IpcPacket_t;
-
-
-
-
-
-
-
+    appComm_IpcHeader_t hdr;
+    u32_t               parmBlock[1]; // Placekeeper for the parameter block.
+} appComm_IpcPacket_t;
 
 /**************************************************************************************************
  *                                                                                                *
  *  Local Function Definitions                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static i32_t
-APP_CommBlockingRead(u8_t*  p_buffer,
-                     u16_t  numOctets);
+static i32_t APP_CommBlockingRead(u8_t *p_buffer, u16_t numOctets);
 
+static bool APP_CommBlockingWrite(u8_t *p_buffer, u16_t numOctets);
 
-static bool
-APP_CommBlockingWrite(u8_t*  p_buffer,
-                      u16_t  numOctets);
+static void APP_CommError(void);
 
+static bool APP_CommGetUplink(appComm_IpcPacket_t **ap_pkt, u16_t *p_pktLength);
 
-static void
-APP_CommError(void);
+static bool APP_CommSendDownlink(kal_mail_details_t *p_mailDetails, kal_mail_unique_handle_t h_unique);
 
+static void APP_CommUplink(void *p_dummy);
 
-static bool
-APP_CommGetUplink(appComm_IpcPacket_t**  ap_pkt,
-                  u16_t*                 p_pktLength);
+static void APP_CommDownlink(void *p_dummy);
 
+static void APP_CommSendUplinkToApp(appComm_IpcPacket_t *p_ipcPkt, u16_t pktLength);
 
-static bool
-APP_CommSendDownlink(kal_mail_details_t*       p_mailDetails,
-                     kal_mail_unique_handle_t  h_unique);
+static bool APP_CommSetUpSigchldHandler(void);
 
+static void APP_CommSigchldHandler(int signalNum);
 
-static void
-APP_CommUplink(void*  p_dummy);
-
-
-static void
-APP_CommDownlink(void*  p_dummy);
-
-
-static void
-APP_CommSendUplinkToApp(appComm_IpcPacket_t*  p_ipcPkt,
-                        u16_t                 pktLength);
-
-
-static bool
-APP_CommSetUpSigchldHandler(void);
-
-
-static void
-APP_CommSigchldHandler(int  signalNum);
-
-
-static const char*
-APP_CommGetFilename(const char*  p_pathname);
-
-
+static const char *APP_CommGetFilename(const char *p_pathname);
 
 extern char *GetInterface(void);
-
-
 
 /**************************************************************************************************
  *                                                                                                *
  *  Global and File Scope Variables                                                               *
  *                                                                                                *
  **************************************************************************************************/
-u8_t                  SL_TaskHandle=0xFF;
-u8_t                  gh_taskUplink=0xFF;
-u8_t                  gh_taskDownlink=0xFF;
-i32_t                 slProcessId=0;
-static i32_t          appCommListeningDescriptor=-1;
-static i32_t          appCommCommDescriptor=-1;
-static volatile bool  appCommConnected=false;
-
-
-
-
-
-
-
+u8_t                 SL_TaskHandle              = 0xFF;
+u8_t                 gh_taskUplink              = 0xFF;
+u8_t                 gh_taskDownlink            = 0xFF;
+i32_t                slProcessId                = 0;
+static i32_t         appCommListeningDescriptor = -1;
+static i32_t         appCommCommDescriptor      = -1;
+static volatile bool appCommConnected           = false;
 
 /**************************************************************************************************
  *                                                                                                *
@@ -222,7 +164,7 @@ static volatile bool  appCommConnected=false;
  *                       5) Spawn a child process for the Services Layer process.                 *
  *                       6) Wait until an inbound connection is made (using accept()).            *
  *                       7) Create two KAL tasks for APP_Uplink and APP_Downlink.  See additional *
- *                          documentation pertaining to the Grid2Home Interprocess Communication  *
+ *                          documentation pertaining to the Kitu Systems Interprocess Communication  *
  *                          Model for definitions of these tasks.                                 *
  *                       8) Assign the vairable "SL_TaskHandle" to be the same as that of         *
  *                          APP_Downlink.                                                         *
@@ -258,30 +200,25 @@ static volatile bool  appCommConnected=false;
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-void
-APP_CommInit(void)
+void APP_CommInit(void)
 {
-    struct sockaddr_un  unixDomainName;
-    struct sockaddr_un  peerName;
-    socklen_t           saLength;
-    struct stat         fileStatus;
+    struct sockaddr_un unixDomainName;
+    struct sockaddr_un peerName;
+    socklen_t          saLength;
+    struct stat        fileStatus;
 
     /* Check that the Services Layer executable exists.  */
     if (stat(APP_NAME_OF_SERVICES_LAYER_EXECUTABLE, &fileStatus) == 0)
     {
-        if (((fileStatus.st_mode & S_IFREG) == 0) ||
-            ((fileStatus.st_mode & S_IRUSR) == 0) ||
-            ((fileStatus.st_mode & S_IXUSR) == 0))
+        if (((fileStatus.st_mode & S_IFREG) == 0) || ((fileStatus.st_mode & S_IRUSR) == 0) || ((fileStatus.st_mode & S_IXUSR) == 0))
         {
-            fprintf(stderr, "FATAL ERROR: invalid permissions for \"%s\"!!\n\n",
-                    APP_NAME_OF_SERVICES_LAYER_EXECUTABLE);
+            fprintf(stderr, "FATAL ERROR: invalid permissions for \"%s\"!!\n\n", APP_NAME_OF_SERVICES_LAYER_EXECUTABLE);
             exit(-1);
         }
     }
     else
     {
-        fprintf(stderr, "FATAL ERROR: unable to obtain file status on \"%s\"; %s\n",
-                APP_NAME_OF_SERVICES_LAYER_EXECUTABLE, strerror(errno));
+        fprintf(stderr, "FATAL ERROR: unable to obtain file status on \"%s\"; %s\n", APP_NAME_OF_SERVICES_LAYER_EXECUTABLE, strerror(errno));
         exit(-1);
     }
 
@@ -289,23 +226,20 @@ APP_CommInit(void)
     appCommListeningDescriptor = socket(AF_UNIX, SOCK_STREAM, 0);
     if (appCommListeningDescriptor == -1)
     {
-        fprintf(stderr, "FATAL ERROR: unable to create a UNIX Domain socket; %s\n",
-                strerror(errno));
+        fprintf(stderr, "FATAL ERROR: unable to create a UNIX Domain socket; %s\n", strerror(errno));
         exit(-1);
     }
 
     /* Bind the socket to a well-known abstract name based on PID.  */
     KAL_Memset(&unixDomainName, 0, sizeof(unixDomainName));
     unixDomainName.sun_family = AF_UNIX;
-    snprintf(unixDomainName.sun_path, APP_COMM_UNIX_PATH_MAX, "%c%s.%d", 0,
-             APP_COMM_CHANNEL_NAME, getpid());
+    snprintf(unixDomainName.sun_path, APP_COMM_UNIX_PATH_MAX, "%c%s.%d", 0, APP_COMM_CHANNEL_NAME, getpid());
     saLength = sizeof(unixDomainName);
-    if (bind(appCommListeningDescriptor, (struct sockaddr*) &unixDomainName, saLength) == -1)
+    if (bind(appCommListeningDescriptor, (struct sockaddr *)&unixDomainName, saLength) == -1)
     {
         close(appCommListeningDescriptor);
-        fprintf(stderr, 
-                "FATAL ERROR: unable to bind a UNIX Domain socket to abstract address %s; %s\n",
-                &unixDomainName.sun_path[1], strerror(errno));
+        fprintf(
+            stderr, "FATAL ERROR: unable to bind a UNIX Domain socket to abstract address %s; %s\n", &unixDomainName.sun_path[1], strerror(errno));
         exit(-1);
     }
 
@@ -313,8 +247,7 @@ APP_CommInit(void)
     if (listen(appCommListeningDescriptor, 1) == -1)
     {
         close(appCommListeningDescriptor);
-        fprintf(stderr, "FATAL ERROR: unable to mark a UNIX Domain socket as listening; %s\n",
-                strerror(errno));
+        fprintf(stderr, "FATAL ERROR: unable to mark a UNIX Domain socket as listening; %s\n", strerror(errno));
         exit(-1);
     }
 
@@ -340,24 +273,25 @@ APP_CommInit(void)
     {
         /* Child process.  Overwrite the process with the Services Layer process.  */
         execl(APP_NAME_OF_SERVICES_LAYER_EXECUTABLE,
-              APP_CommGetFilename(APP_NAME_OF_SERVICES_LAYER_EXECUTABLE), 
-              "-g", APP_COMM_SL_DM_PORT_NUMBER,
-              "-i", GetInterface(),
-              (char*) APP_COMM_SL_IP_AUTOSELECT,
-              (char*) NULL);
+              APP_CommGetFilename(APP_NAME_OF_SERVICES_LAYER_EXECUTABLE),
+              "-g",
+              APP_COMM_SL_DM_PORT_NUMBER,
+              "-i",
+              GetInterface(),
+              (char *)APP_COMM_SL_IP_AUTOSELECT,
+              (char *)NULL);
         exit(0);
     }
-#endif  // APP_COMM_AUTOEXEC_SL
+#endif // APP_COMM_AUTOEXEC_SL
 
     /* Wait for an incoming connection.   */
     saLength = sizeof(peerName);
     KAL_Memset(&peerName, 0, saLength);
-    appCommCommDescriptor = accept(appCommListeningDescriptor, (struct sockaddr*) &peerName, &saLength);
+    appCommCommDescriptor = accept(appCommListeningDescriptor, (struct sockaddr *)&peerName, &saLength);
     if (appCommCommDescriptor == -1)
     {
         close(appCommListeningDescriptor);
-        fprintf(stderr, "FATAL ERROR: unable to accept an incoming connection; %s\n",
-                strerror(errno));
+        fprintf(stderr, "FATAL ERROR: unable to accept an incoming connection; %s\n", strerror(errno));
         exit(-1);
     }
     fprintf(stderr, "INFO: connected to Services Layer process.\n");
@@ -368,27 +302,19 @@ APP_CommInit(void)
          print a message when SIGCHLD is raised.  */
     appCommConnected = true;
 
-    /* Create the APP_Uplink and APP_Downlink tasks.  These names are defined in the Grid2Home
+    /* Create the APP_Uplink and APP_Downlink tasks.  These names are defined in the Kitu Systems
          Interprocess Communication Model documentation.  */
-    gh_taskUplink = KAL_TaskCreate(APP_CommUplink, NULL, "Up", NULL, 0, 100);
+    gh_taskUplink   = KAL_TaskCreate(APP_CommUplink, NULL, "Up", NULL, 0, 100);
     gh_taskDownlink = KAL_TaskCreate(APP_CommDownlink, NULL, "Down", NULL, 0, 100);
     if ((gh_taskUplink == G2_FAILURE) || (gh_taskDownlink == G2_FAILURE))
     {
         close(appCommListeningDescriptor);
         close(appCommCommDescriptor);
-        fprintf(stderr,
-                "FATAL ERROR: unable to create KAL tasks required for APP_Uplink and/or APP_Downlink!!\n\n");
+        fprintf(stderr, "FATAL ERROR: unable to create KAL tasks required for APP_Uplink and/or APP_Downlink!!\n\n");
         exit(-1);
     }
     SL_TaskHandle = gh_taskDownlink;
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -424,23 +350,21 @@ APP_CommInit(void)
  *      false - if an error occurred.                                                             *
  *                                                                                                *
  **************************************************************************************************/
-static bool
-APP_CommGetUplink(appComm_IpcPacket_t**  ap_pkt,
-                  u16_t*                 p_pktLength)
+static bool APP_CommGetUplink(appComm_IpcPacket_t **ap_pkt, u16_t *p_pktLength)
 {
-    bool   retValue=false;
-    i32_t  numBytes;
+    bool  retValue = false;
+    i32_t numBytes;
 
     /* Read the IPC packet length.  */
-    numBytes = APP_CommBlockingRead((u8_t*) p_pktLength, APP_COMM_LENGTH_OF_FRAME_HEADER);
+    numBytes = APP_CommBlockingRead((u8_t *)p_pktLength, APP_COMM_LENGTH_OF_FRAME_HEADER);
     if (numBytes == APP_COMM_LENGTH_OF_FRAME_HEADER)
     {
         /* Dynamically allocate a buffer for the IPC packet.  */
-        *ap_pkt = (appComm_IpcPacket_t*) KAL_Malloc(*p_pktLength);
+        *ap_pkt = (appComm_IpcPacket_t *)KAL_Malloc(*p_pktLength);
         if (*ap_pkt != NULL)
         {
             KAL_Memset(*ap_pkt, 0, *p_pktLength);
-            numBytes = APP_CommBlockingRead((u8_t*) *ap_pkt, *p_pktLength);
+            numBytes = APP_CommBlockingRead((u8_t *)*ap_pkt, *p_pktLength);
             if (numBytes == *p_pktLength)
             {
                 retValue = true;
@@ -449,12 +373,11 @@ APP_CommGetUplink(appComm_IpcPacket_t**  ap_pkt,
             {
                 /* Since the read failed, release memory for the IPC packet.  */
                 KAL_Free(*ap_pkt);
-                *ap_pkt = NULL;
+                *ap_pkt      = NULL;
                 *p_pktLength = 0;
 
                 /* Print error and terminate.  */
-                fprintf(stderr,
-                        "INFO: communications error with Services Layer Application process!!  Terminating...\n\n");
+                fprintf(stderr, "INFO: communications error with Services Layer Application process!!  Terminating...\n\n");
                 exit(-1);
             }
         }
@@ -466,20 +389,12 @@ APP_CommGetUplink(appComm_IpcPacket_t**  ap_pkt,
     else
     {
         /* Print error and terminate.  */
-        fprintf(stderr,
-                "INFO: communications error with Services Layer Application process!!  Terminating...\n\n");
+        fprintf(stderr, "INFO: communications error with Services Layer Application process!!  Terminating...\n\n");
         exit(-1);
     }
 
     return retValue;
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -515,16 +430,14 @@ APP_CommGetUplink(appComm_IpcPacket_t**  ap_pkt,
  *      false - if an error occurred.                                                             *
  *                                                                                                *
  **************************************************************************************************/
-static bool
-APP_CommSendDownlink(kal_mail_details_t*       p_mailDetails,
-                     kal_mail_unique_handle_t  h_unique)
+static bool APP_CommSendDownlink(kal_mail_details_t *p_mailDetails, kal_mail_unique_handle_t h_unique)
 {
-    u16_t                 ipcPktLength;
-    appComm_IpcPacket_t*  p_pkt;
-    bool                  retValue=false;
+    u16_t                ipcPktLength;
+    appComm_IpcPacket_t *p_pkt;
+    bool                 retValue = false;
 
-    ipcPktLength = sizeof(appComm_IpcPacket_t) + (u16_t) p_mailDetails->ParameterLength - sizeof(u32_t);
-    p_pkt = (appComm_IpcPacket_t*) KAL_Malloc(ipcPktLength);
+    ipcPktLength = sizeof(appComm_IpcPacket_t) + (u16_t)p_mailDetails->ParameterLength - sizeof(u32_t);
+    p_pkt        = (appComm_IpcPacket_t *)KAL_Malloc(ipcPktLength);
     if (p_pkt != NULL)
     {
         KAL_Memset(p_pkt, 0, ipcPktLength);
@@ -532,9 +445,9 @@ APP_CommSendDownlink(kal_mail_details_t*       p_mailDetails,
         p_pkt->hdr.mailId          = p_mailDetails->MailId;
         p_pkt->hdr.h_uniqueVal     = h_unique;
         KAL_Memcpy(&(p_pkt->parmBlock), p_mailDetails->pParameterBlock, p_mailDetails->ParameterLength);
-        if (APP_CommBlockingWrite((u8_t*) &ipcPktLength, APP_COMM_LENGTH_OF_FRAME_HEADER))
+        if (APP_CommBlockingWrite((u8_t *)&ipcPktLength, APP_COMM_LENGTH_OF_FRAME_HEADER))
         {
-            retValue = APP_CommBlockingWrite((u8_t*) p_pkt, ipcPktLength);
+            retValue = APP_CommBlockingWrite((u8_t *)p_pkt, ipcPktLength);
         }
         KAL_Free(p_pkt);
     }
@@ -545,13 +458,6 @@ APP_CommSendDownlink(kal_mail_details_t*       p_mailDetails,
 
     return retValue;
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -585,12 +491,10 @@ APP_CommSendDownlink(kal_mail_details_t*       p_mailDetails,
  *             numOctets - upon success.  This value is greater than or equal to zero.            *
  *                                                                                                *
  **************************************************************************************************/
-static i32_t
-APP_CommBlockingRead(u8_t*  p_buffer,
-                     u16_t  numOctets)
+static i32_t APP_CommBlockingRead(u8_t *p_buffer, u16_t numOctets)
 {
-    i32_t  bytesRemaining;
-    i32_t  bytesRead;
+    i32_t bytesRemaining;
+    i32_t bytesRead;
 
     if (appCommCommDescriptor != -1)
     {
@@ -630,13 +534,6 @@ APP_CommBlockingRead(u8_t*  p_buffer,
     return numOctets;
 }
 
-
-
-
-
-
-
-
 /**************************************************************************************************
  *                                                                                                *
  *  APP_CommBlockingWrite() - this routine performs a blocking write to the communications        *
@@ -667,12 +564,10 @@ APP_CommBlockingRead(u8_t*  p_buffer,
  *      false - if an error occurred.                                                             *
  *                                                                                                *
  **************************************************************************************************/
-static bool
-APP_CommBlockingWrite(u8_t*  p_buffer,
-                      u16_t  numOctets)
+static bool APP_CommBlockingWrite(u8_t *p_buffer, u16_t numOctets)
 {
-    i32_t  bytesWritten;
-    i32_t  bytesRemaining;
+    i32_t bytesWritten;
+    i32_t bytesRemaining;
 
     if (appCommCommDescriptor != -1)
     {
@@ -711,13 +606,6 @@ APP_CommBlockingWrite(u8_t*  p_buffer,
     return true;
 }
 
-
-
-
-
-
-
-
 /**************************************************************************************************
  *                                                                                                *
  *  APP_CommError() - this routine is called when an unrecoverable communications error occurs.   *
@@ -746,8 +634,7 @@ APP_CommBlockingWrite(u8_t*  p_buffer,
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static void
-APP_CommError(void)
+static void APP_CommError(void)
 {
     /* Close the listening socket, if extant.  */
     if (appCommListeningDescriptor != -1)
@@ -763,13 +650,6 @@ APP_CommError(void)
         appCommCommDescriptor = -1;
     }
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -810,10 +690,9 @@ APP_CommError(void)
  *            false - upon failure to install the SIGCHLD handler.                                *
  *                                                                                                *
  **************************************************************************************************/
-static bool
-APP_CommSetUpSigchldHandler(void)
+static bool APP_CommSetUpSigchldHandler(void)
 {
-    struct sigaction  sa;
+    struct sigaction sa;
 
     KAL_Memset(&sa, 0, sizeof(sa));
     sa.sa_handler = APP_CommSigchldHandler;
@@ -827,13 +706,6 @@ APP_CommSetUpSigchldHandler(void)
 
     return true;
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -866,26 +738,19 @@ APP_CommSetUpSigchldHandler(void)
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static void
-APP_CommSigchldHandler(int  signal)
+static void APP_CommSigchldHandler(int signal)
 {
+    (void)signal;
+
     if (appCommConnected == false)
     {
         /* Termination the application.  */
-        fprintf(stderr,
-                "INFO: signal SIGCHLD received prior to communications channel establishment.  Terminating...\n");
+        fprintf(stderr, "INFO: signal SIGCHLD received prior to communications channel establishment.  Terminating...\n");
         exit(-1);
     }
 
     fprintf(stderr, "INFO: signal SIGCHLD received.  Ignoring signal...\n");
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -917,22 +782,23 @@ APP_CommSigchldHandler(int  signal)
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static void
-APP_CommUplink(void*  p_dummy)
+static void APP_CommUplink(void *p_dummy)
 {
-    kal_message_details_t  msgDetails;
-    kal_mail_details_t     mailDetails;
-    appComm_IpcPacket_t*   p_ipcPkt;
-    u16_t                  ipcPktLength;
-    kal_event_t            eventMask;
+    (void)p_dummy;
 
-    (void) KAL_SwdRegister(KAL_SWD_TASKTYPE_NONE);
+    kal_message_details_t msgDetails;
+    kal_mail_details_t    mailDetails;
+    appComm_IpcPacket_t  *p_ipcPkt;
+    u16_t                 ipcPktLength;
+    kal_event_t           eventMask;
+
+    (void)KAL_SwdRegister(KAL_SWD_TASKTYPE_NONE);
 
     /* Wait for the KAL system start event.  */
-    (void) KAL_TaskEventWait(KAL_START_EVENT, 0);
+    (void)KAL_TaskEventWait(KAL_START_EVENT, 0);
 
     /* Wait for the Mode Manager to instruct the task to enter NORMAL mode.  */
-    (void) KAL_TaskEventWait(KAL_MM_ENTER_NORMAL_PROCESSING_EVENT, 0);
+    (void)KAL_TaskEventWait(KAL_MM_ENTER_NORMAL_PROCESSING_EVENT, 0);
 
     /* Infinite loop waiting to receive data from the communications channel.  */
     while (1)
@@ -949,7 +815,7 @@ APP_CommUplink(void*  p_dummy)
             if (eventMask & ~KAL_EVENT_TIMEOUT_EVENT)
             {
                 /* Print out a warning message.  */
-                fprintf(stderr, "WARNING: Uplink task received events: 0x%016llX\n", eventMask);
+                fprintf(stderr, "WARNING: Uplink task received events: 0x%016" PRIX64 "\n", eventMask);
 
                 /* Check if mail was received.  If so, perform a blind read of the mail to avoid
                      a memory leak.  */
@@ -976,19 +842,11 @@ APP_CommUplink(void*  p_dummy)
         }
         else
         {
-            fprintf(stderr,
-                    "INFO: communications error with Services Layer Application process!!  Terminating...\n\n");
+            fprintf(stderr, "INFO: communications error with Services Layer Application process!!  Terminating...\n\n");
             exit(-1);
         }
     }
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -1021,23 +879,24 @@ APP_CommUplink(void*  p_dummy)
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static void
-APP_CommDownlink(void*  p_dummy)
+static void APP_CommDownlink(void *p_dummy)
 {
-    kal_mail_details_t        mailDetails;
-    kal_message_details_t     msgDetails;
-    kal_mail_unique_handle_t  h_unique;
-    kal_event_t               eventMask;
+    (void)p_dummy;
+
+    kal_mail_details_t       mailDetails;
+    kal_message_details_t    msgDetails;
+    kal_mail_unique_handle_t h_unique;
+    kal_event_t              eventMask;
 
     /* Register the task as a Synchronous Mail replier.  */
-    (void) KAL_MailSyncRegister(KAL_MAILSYNC_TASKTYPE_REPLIER);
-    (void) KAL_SwdRegister(KAL_SWD_TASKTYPE_NONE);
+    (void)KAL_MailSyncRegister(KAL_MAILSYNC_TASKTYPE_REPLIER);
+    (void)KAL_SwdRegister(KAL_SWD_TASKTYPE_NONE);
 
     /* Wait for the KAL system start event.  */
-    (void) KAL_TaskEventWait(KAL_START_EVENT, 0);
+    (void)KAL_TaskEventWait(KAL_START_EVENT, 0);
 
     /* Wait for the Mode Manager to instruct the task to enter NORMAL mode.  */
-    (void) KAL_TaskEventWait(KAL_MM_ENTER_NORMAL_PROCESSING_EVENT, 0);
+    (void)KAL_TaskEventWait(KAL_MM_ENTER_NORMAL_PROCESSING_EVENT, 0);
 
     /* Infinite loop waiting to receive data from the communications channel.  */
     while (1)
@@ -1051,8 +910,7 @@ APP_CommDownlink(void*  p_dummy)
                 {
                     if (!APP_CommSendDownlink(&mailDetails, h_unique))
                     {
-                        fprintf(stderr,
-                                "INFO: communications error with Services Layer process!!  Terminating...\n\n");
+                        fprintf(stderr, "INFO: communications error with Services Layer process!!  Terminating...\n\n");
                         exit(-1);
                     }
                 }
@@ -1063,26 +921,19 @@ APP_CommDownlink(void*  p_dummy)
                     /* All encapsulated IPC packets do not use the unique handle.  Instead, the
                          unique handle is encapsulated as part of the IPC packet itself, and the
                          IPC packet is carried in the mail's parameter block.  */
-                    APP_CommSendUplinkToApp(mailDetails.pParameterBlock,
-                                            mailDetails.ParameterLength);
+                    APP_CommSendUplinkToApp(mailDetails.pParameterBlock, mailDetails.ParameterLength);
                 }
                 else
                 {
                     fprintf(stderr,
                             "WARNING: received mail from unknown entity (0x%02X sent 0x%04hX).  Ignoring...\n",
-                            mailDetails.iPartnerTask, mailDetails.MailId);
+                            mailDetails.iPartnerTask,
+                            mailDetails.MailId);
                 }
             }
         }
     }
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -1116,11 +967,11 @@ APP_CommDownlink(void*  p_dummy)
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static void
-APP_CommSendUplinkToApp(appComm_IpcPacket_t*  p_ipcPkt,
-                        u16_t                 pktLength)
+static void APP_CommSendUplinkToApp(appComm_IpcPacket_t *p_ipcPkt, u16_t pktLength)
 {
-    kal_mail_details_t        mailDetails;
+    (void)pktLength;
+
+    kal_mail_details_t mailDetails;
 
     KAL_Memset(&mailDetails, 0, sizeof(mailDetails));
 
@@ -1140,13 +991,6 @@ APP_CommSendUplinkToApp(appComm_IpcPacket_t*  p_ipcPkt,
          mail is asynchronous.  */
     KAL_MailSyncSendReply(NULL, &mailDetails, p_ipcPkt->hdr.h_uniqueVal);
 }
-
-
-
-
-
-
-
 
 /**************************************************************************************************
  *                                                                                                *
@@ -1173,10 +1017,9 @@ APP_CommSendUplinkToApp(appComm_IpcPacket_t*  p_ipcPkt,
  *      <none>                                                                                    *
  *                                                                                                *
  **************************************************************************************************/
-static const char*
-APP_CommGetFilename(const char*  p_pathname)
+static const char *APP_CommGetFilename(const char *p_pathname)
 {
-    i16_t  index;
+    i16_t index;
 
     index = strlen(p_pathname) - 1;
     while ((index >= 0) && (p_pathname[index] != '/'))
@@ -1185,14 +1028,5 @@ APP_CommGetFilename(const char*  p_pathname)
     }
     index++;
 
-    return p_pathname+index;
+    return p_pathname + index;
 }
-
-
-
-
-
-
-
-
-

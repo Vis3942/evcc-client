@@ -22,13 +22,15 @@
 #define UNIX_SOCK_SERVER2CLIENT_CONNECTED 0x11
 #define UNIX_SOCK_SERVER2CLIENT_ERROR     0x12
 
+#define USOCK_READ_BUF_LEN  4096 // SAME SIZE AS RECV BUFFER
+
 char *sep2_client2server_path = "/tmp/client2server";
 char *sep2_server2client_path = "/tmp/server2client";
 
 
 int cli2srv_usock_fd = -1;
 int status_cli2srv_usock = UNIX_SOCK_CLIENT2SERVER_UNCONNECTED;
-char rd_buf[1024];
+char rd_buf[USOCK_READ_BUF_LEN];
 
 static u32_t (*process_messages)(char *buffer, int size) = NULL;
 
@@ -62,7 +64,7 @@ int usock_client2server_open()
   }
 
   // return 0 if succ else return errno
-  if ((cli2srv_usock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+  if ((cli2srv_usock_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
       perror("socket");
       return errno;
   }
@@ -89,7 +91,6 @@ int usock_client2server_open()
 
 int srv2cli_usock_fd = -1;
 int status_srv2cli_usock = UNIX_SOCK_SERVER2CLIENT_UNCONNECTED;
-char rd_buf[1024];
 
 void usock_server2client_close()
 {
@@ -115,7 +116,7 @@ int usock_server2client_open()
     }
 
     // return 0 if succ else return errno
-    if ((srv2cli_usock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+    if ((srv2cli_usock_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0)) == -1) {
         perror("socket");
         return errno;
     }
@@ -159,7 +160,7 @@ int usock_client2server_write_message(char* send_buf, int send_buf_len)
   if ( ( status_cli2srv_usock == UNIX_SOCK_CLIENT2SERVER_CONNECTED ) && 
         (cli2srv_usock_fd > 0) 
   ) {
-  	n = send(cli2srv_usock_fd, send_buf, send_buf_len, 0);
+  	n = send(cli2srv_usock_fd, send_buf, send_buf_len, MSG_DONTWAIT);
     if (n < 0) {
       printf("error writing to server.");
       //console_log("error writing to server.");
@@ -169,6 +170,7 @@ int usock_client2server_write_message(char* send_buf, int send_buf_len)
       status_cli2srv_usock = UNIX_SOCK_CLIENT2SERVER_ERROR;
     }
     else {
+      displayTime();
       printf(" bytes to client %d\n", n);
     }
   }
@@ -185,8 +187,8 @@ void usock_server2client_read_message()
 {
   int n;
   // read data that the client sent to the server
-  memset(rd_buf, 0, sizeof(rd_buf));
-  n = recv(srv2cli_usock_fd, rd_buf, sizeof(rd_buf), 0);
+  memset(rd_buf, 0, USOCK_READ_BUF_LEN);
+  n = recv(srv2cli_usock_fd, rd_buf, USOCK_READ_BUF_LEN, 0);
   if (n < 0) {
     perror("recv from server:");
     usock_server2client_close();

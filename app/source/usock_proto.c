@@ -28,7 +28,7 @@ char recv_buf[BUF_SIZE];
 char send_buf[BUF_SIZE];
 int recv_buf_len;
 int send_buf_len;
-char proc_buf[3*1024];
+char proc_buf[BUF_SIZE];
 int proc_buf_len = 0;
 
 // message type is based on defines in sl_api.h
@@ -261,10 +261,18 @@ void processPackets()
         }
 
         int t_length = bytesToInt(proc_buf, bytesProcessed);
+        if (t_length == 0) 
+        {
+          fprintf(stdout, "---->>>>computed length is 0 exit loop discard data<<<<------ \n" );
+          // discard packet
+          bytesProcessed = proc_buf_len;
+          break;
+        }
         // int t_tag = bytesToInt(proc_buf, bytesProcessed + 4);
        
         if (proc_buf_len - bytesProcessed < t_length) {
             // Incomplete packet
+            fprintf(stdout, "---->>>>ProcPack<<<<------ exp len %d \n", t_length);
             break;
         }
 
@@ -277,6 +285,7 @@ void processPackets()
 
         // Update the bytes processed
         bytesProcessed += t_length;
+        displayTime();
         printf("bytesProc = %d, t_len = %d, proc buf len = %d\n", bytesProcessed, t_length, proc_buf_len);
     }
 
@@ -297,6 +306,7 @@ void processPackets()
 
 u32_t process_recv_message(char* rd_buf, int rd_buf_len) {
   // copy rd_buf into proc_buf at proc_buf_len
+  fprintf(stdout, "---->>>>====<<<<---- process recv proc buf len[max 4096] %d, rd buf len %d\n", proc_buf_len, rd_buf_len);
   memcpy(&proc_buf[proc_buf_len], rd_buf, rd_buf_len);
   proc_buf_len += rd_buf_len;
 

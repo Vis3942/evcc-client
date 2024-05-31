@@ -1,10 +1,10 @@
 /******************************************************************************
- * GRID2HOME SMART ENERGY 2
+ * KITU SYSTEMS SMART ENERGY 2
  *****************************************************************************/
 /**
- * Copyright (C) 2009 Grid2Home, Inc. All rights reserved.
+ * Copyright (C) 2009 Kitu Systems, Inc. All rights reserved.
  * This source code and any compilation or derivative thereof is the proprietary
- * information of Grid2Home, Inc and is confidential in nature.
+ * information of Kitu Systems, Inc and is confidential in nature.
  *
  * \file          app_edev_client.c
  *
@@ -23,44 +23,44 @@
    $History: $
  */
 
-#include "sl_api.h"
-#include <string.h>
-#include <stdio.h>
-#include "kal_api.h"
+#include "app_edev_client.h"
 #include "app_api.h"
 #include "app_config.h"
-#include "app_edev_client.h"
 #include "app_utils.h"
+#include "kal_api.h"
+#include "sl_api.h"
+#include <stdio.h>
+#include <string.h>
 
 #if APP_CONFIG_EDEV_CLIENT_ENABLED
 
 /*******************************************************************************
  * Private Constants
  ******************************************************************************/
-#define APP_EDEV_CLIENT_SELECT_SERVER_INDEX     0  // Example of choosing a server to register to
-
+#define APP_EDEV_CLIENT_SELECT_SERVER_INDEX 0 // Example of choosing a server to register to
 
 /*******************************************************************************
  * Private Data
  ******************************************************************************/
 
-typedef struct edev_server_node {
-  sl_edev_client_server_found_ind serverInfo;
-  struct edev_server_node         *next;
+typedef struct edev_server_node
+{
+    sl_edev_client_server_found_ind serverInfo;
+    struct edev_server_node        *next;
 } edev_server_node_t;
 
-struct {
-  bool                          pendingRequest;
-  u32_t                         pendingCancel;
-  edev_server_node_t            *pServerList;
-  u8_t                          numServersFound;
+struct
+{
+    bool                pendingRequest;
+    u32_t               pendingCancel;
+    edev_server_node_t *pServerList;
+    u8_t                numServersFound;
 } appEdevClient = {
     false, //   pendingRequest
     0,     //   pendingCancel
     NULL,  //  *pServerListHead
     0,     // numServersFound
 };
-
 
 /*******************************************************************************
  * Local Functions
@@ -74,96 +74,99 @@ static void app_EdevClientHandleSendEdevCnf(sl_edev_client_send_enddev_cnf *pCnf
  ******************************************************************************/
 static void app_EdevClientHandleServerInd(sl_edev_client_server_found_ind *pInd)
 {
-  int index=-1;
-  bool found=false;
-  edev_server_node_t *pNode = appEdevClient.pServerList;
-  edev_server_node_t *pPrevNode = NULL;
-  edev_server_node_t *pNew;
+    int                 index     = -1;
+    bool                found     = false;
+    edev_server_node_t *pNode     = appEdevClient.pServerList;
+    edev_server_node_t *pPrevNode = NULL;
+    edev_server_node_t *pNew;
 
-  if (pInd->serverStatus == SL_EDEV_CLIENT_SERVER_STATUS_UNKNOWN)
-    return;     // Ignore and wait for a meaningful status
+    if (pInd->serverStatus == SL_EDEV_CLIENT_SERVER_STATUS_UNKNOWN) return; // Ignore and wait for a meaningful status
 
-  // First, check if this is a unique server.
-  while (pNode != NULL)
-  {
-    ++index;
-    if (pNode->serverInfo.serverDetails.serverHandle == pInd->serverDetails.serverHandle)
+    // First, check if this is a unique server.
+    while (pNode != NULL)
     {
-      found = true;
-      break;
+        ++index;
+        if (pNode->serverInfo.serverDetails.serverHandle == pInd->serverDetails.serverHandle)
+        {
+            found = true;
+            break;
+        }
+        pPrevNode = pNode;
+        pNode     = pNode->next;
     }
-    pPrevNode = pNode;
-    pNode = pNode->next;
-  }
 
-  // If unique, then add to the end of the list
-  if (found == false)
-  {
-    if (pInd->serverDetails.status == SL_CMN_SERVER_STATUS_LOST)
-      return;  // Don't save the server info
-
-    pNew = KAL_Malloc(sizeof(edev_server_node_t));
-    if (pNew == NULL)
+    // If unique, then add to the end of the list
+    if (found == false)
     {
-      APP_LOG_WARNING("app_EdevClientHandleServerInd: Cannot allocate memory for new server node");
-      return;
-    }
-    pNew->serverInfo = *pInd;
-    pNew->next = NULL;
+        if (pInd->serverDetails.status == SL_CMN_SERVER_STATUS_LOST) return; // Don't save the server info
 
-    pNode = appEdevClient.pServerList;
+        pNew = KAL_Malloc(sizeof(edev_server_node_t));
+        if (pNew == NULL)
+        {
+            APP_LOG_WARNING("app_EdevClientHandleServerInd: Cannot allocate memory for new server node");
+            return;
+        }
+        pNew->serverInfo = *pInd;
+        pNew->next       = NULL;
 
-    index=0;
-    if (pNode == NULL)
-    {
-      appEdevClient.pServerList = pNew;
+        pNode = appEdevClient.pServerList;
+
+        index = 0;
+        if (pNode == NULL)
+        {
+            appEdevClient.pServerList = pNew;
+        }
+        else
+        {
+            while (pNode->next != NULL)
+            {
+                pNode = pNode->next;
+                index++;
+            }
+
+            pNode->next = pNew;
+            index++;
+        }
+
+        appEdevClient.numServersFound++;
+
+        // If not registered, check if it matches the index of the server we want to select, and send registration request accordingly
+        if (((pInd->serverStatus == SL_EDEV_CLIENT_SERVER_STATUS_UNREGISTERED) ||
+             (pInd->serverStatus == SL_EDEV_CLIENT_SERVER_STATUS_UNDETERMINED)) &&
+            (index == APP_EDEV_CLIENT_SELECT_SERVER_INDEX))
+        {
+            app_EdevClientSendEdevRegRequest(&(pNew->serverInfo.serverDetails));
+        }
     }
+    // If not unique, then update the server information in our database
     else
     {
-      while (pNode->next != NULL)
-      {
-        pNode = pNode->next;
-        index++;
-      }
+        if (pInd->serverDetails.status == SL_CMN_SERVER_STATUS_LOST)
+        {
+            // Remove server
+            if (pPrevNode == NULL) appEdevClient.pServerList = pNode->next;
+            else pPrevNode->next = pNode->next;
 
-      pNode->next = pNew;
-      index++;
+            KAL_Free(pNode);
+            appEdevClient.numServersFound--;
+        }
+        else
+        {
+            // Update server
+            pNode->serverInfo = *pInd;
+        }
     }
-
-    appEdevClient.numServersFound++;
-  }
-  // If not unique, then update the server information in our database
-  else
-  {
-    if (pInd->serverDetails.status == SL_CMN_SERVER_STATUS_LOST)
-    {
-      // Remove server
-      if (pPrevNode == NULL)
-        appEdevClient.pServerList = pNode->next;
-      else
-        pPrevNode->next = pNode->next;
-
-      KAL_Free(pNode);
-      appEdevClient.numServersFound--;
-    }
-    else
-    {
-      // Update server
-      pNode->serverInfo = *pInd;
-    }
-  }
 }
 
 /*******************************************************************************
-  * app_EdevClientSendEdevRegRequest()
-  ******************************************************************************/
+ * app_EdevClientSendEdevRegRequest()
+ ******************************************************************************/
 static void app_EdevClientSendEdevRegRequest(sl_cmn_client_server_ind_t *pServer)
 {
     sl_edev_client_send_enddev_req *pReq;
 
     // Check to make sure there is no pending uncomfirmed request (transaction ID is non-zero)
-    if (appEdevClient.pendingRequest == true)
-        return;     // already pending transaction, so return without action
+    if (appEdevClient.pendingRequest == true) return; // already pending transaction, so return without action
 
     // Send the post request, assuming the "root" is the first one in the Server record
 
@@ -174,19 +177,18 @@ static void app_EdevClientSendEdevRegRequest(sl_cmn_client_server_ind_t *pServer
         return;
     }
 
-    pReq->serverSourceInfo.serverHandle = pServer->serverHandle;
+    pReq->serverSourceInfo.serverHandle  = pServer->serverHandle;
     pReq->serverSourceInfo.source.source = pServer->sourceList[0].source;
-    pReq->serverSourceInfo.source.fsaId = pServer->sourceList[0].fsaId;
+    pReq->serverSourceInfo.source.fsaId  = pServer->sourceList[0].fsaId;
 
     app_SendMail(SL_EDEV_CLIENT_SEND_ENDDEV_REQ, pReq, sizeof(sl_edev_client_send_enddev_req));
 
     appEdevClient.pendingRequest = true;
 }
 
-
 /*******************************************************************************
-  * app_EdevClientHandleSendEdevCnf()
-  ******************************************************************************/
+ * app_EdevClientHandleSendEdevCnf()
+ ******************************************************************************/
 static void app_EdevClientHandleSendEdevCnf(sl_edev_client_send_enddev_cnf *pCnf)
 {
     if (appEdevClient.pendingRequest == false)
@@ -204,46 +206,42 @@ static void app_EdevClientHandleSendEdevCnf(sl_edev_client_send_enddev_cnf *pCnf
     }
 }
 
-
-
 /*******************************************************************************
  * app_EdevClientHandleMail()
  ******************************************************************************/
 void app_EdevClientHandleMail(kal_mail_id_t mailId, void *pMail)
 {
-  switch (mailId)
-  {
-  case SL_EDEV_CLIENT_CANCEL_GET_EDEV_LIST_CNF:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_CANCEL_GET_EDEV_LIST_CNF");
-    break;
-  case SL_EDEV_CLIENT_EDEV_LIST_IND:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_EDEV_LIST_IND");
-    app_LogStatus(((sl_edev_client_edev_list_ind *)pMail)->results.status);
-    break;
-  case SL_EDEV_CLIENT_FIND_SERVER_CNF:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_FIND_SERVER_CNF");
-    app_LogStatus(((sl_edev_client_find_server_cnf *)pMail)->status);
-    break;
-  case SL_EDEV_CLIENT_GET_EDEV_LIST_CNF:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_GET_EDEV_LIST_CNF");
-    app_LogStatus(((sl_edev_client_get_edev_list_cnf *)pMail)->status);
-    break;
-  case SL_EDEV_CLIENT_SEND_ENDDEV_CNF:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_SEND_ENDDEV_CNF");
-    app_EdevClientHandleSendEdevCnf((sl_edev_client_send_enddev_cnf *) pMail);
-    app_LogStatus(((sl_edev_client_send_enddev_cnf *)pMail)->status);
-    break;
-  case SL_EDEV_CLIENT_SERVER_FOUND_IND:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_SERVER_FOUND_IND");
-    app_EdevClientHandleServerInd((sl_edev_client_server_found_ind *) pMail);
-    break;
-  case SL_EDEV_CLIENT_SET_PIN_CNF:
-    APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_SET_PIN_CNF");
-    app_LogStatus(((sl_edev_client_set_pin_cnf *)pMail)->status);
-    break;
-  }
+    switch (mailId)
+    {
+    case SL_EDEV_CLIENT_CANCEL_GET_EDEV_LIST_CNF:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_CANCEL_GET_EDEV_LIST_CNF");
+        break;
+    case SL_EDEV_CLIENT_EDEV_LIST_IND:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_EDEV_LIST_IND");
+        app_LogStatus(((sl_edev_client_edev_list_ind *)pMail)->results.status);
+        break;
+    case SL_EDEV_CLIENT_FIND_SERVER_CNF:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_FIND_SERVER_CNF");
+        app_LogStatus(((sl_edev_client_find_server_cnf *)pMail)->status);
+        break;
+    case SL_EDEV_CLIENT_GET_EDEV_LIST_CNF:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_GET_EDEV_LIST_CNF");
+        app_LogStatus(((sl_edev_client_get_edev_list_cnf *)pMail)->status);
+        break;
+    case SL_EDEV_CLIENT_SEND_ENDDEV_CNF:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_SEND_ENDDEV_CNF");
+        app_EdevClientHandleSendEdevCnf((sl_edev_client_send_enddev_cnf *)pMail);
+        app_LogStatus(((sl_edev_client_send_enddev_cnf *)pMail)->status);
+        break;
+    case SL_EDEV_CLIENT_SERVER_FOUND_IND:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_SERVER_FOUND_IND");
+        app_EdevClientHandleServerInd((sl_edev_client_server_found_ind *)pMail);
+        break;
+    case SL_EDEV_CLIENT_SET_PIN_CNF:
+        APP_LOG_INFO("app_EdevClientHandleMail: SL_EDEV_CLIENT_SET_PIN_CNF");
+        app_LogStatus(((sl_edev_client_set_pin_cnf *)pMail)->status);
+        break;
+    }
 }
 
 #endif // APP_CONFIG_EDEV_CLIENT_ENABLED
-
-

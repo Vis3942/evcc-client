@@ -1,10 +1,10 @@
 /******************************************************************************
- * GRID2HOME SMART ENERGY 2
+ * KITU SYSTEMS SMART ENERGY 2
  *****************************************************************************/
 /**
- * Copyright (C) 2009 Grid2Home, Inc. All rights reserved.
+ * Copyright (C) 2009 Kitu Systems, Inc. All rights reserved.
  * This source code and any compilation or derivative thereof is the proprietary
- * information of Grid2Home, Inc and is confidential in nature.
+ * information of Kitu Systems, Inc and is confidential in nature.
  *
  * \file          app_meter_mirror_client.h
  *
@@ -23,15 +23,14 @@
    $History: $
  */
 
-#ifndef   APP_METER_MIRROR_CLIENT_H
-#define   APP_METER_MIRROR_CLIENT_H
+#ifndef APP_METER_MIRROR_CLIENT_H
+#define APP_METER_MIRROR_CLIENT_H
 
-// IANA PEN for Stellantis
-#define STELLANTIS_IANA_PEN 57872
+#include "kal_api.h"
+#include "sl_api.h"
 /*******************************************************************************
  * Timer Events
  ******************************************************************************/
-
 
 /*******************************************************************************
  * APP Server Functions
@@ -40,4 +39,6 @@ void app_MeterMirrorClientHandleMail(kal_mail_id_t mailId, void *pMail);
 void EVCCSetupMupReq(sl_meter_mirror_client_send_mup_req *pReq);
 void EVCCMmrReq(sl_meter_mirror_client_send_mmr_req *pReq);
 
-#endif  // APP_METER_MIRROR_CLIENT_H
+extern u32_t meter_req_transaction_id;
+
+#endif // APP_METER_MIRROR_CLIENT_H

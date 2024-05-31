@@ -1,10 +1,10 @@
 /******************************************************************************
- * GRID2HOME SMART ENERGY 2
+ * KITU SYSTEMS SMART ENERGY 2
  *****************************************************************************/
 /**
- * Copyright (C) 2009 Grid2Home, Inc. All rights reserved.
+ * Copyright (C) 2009 Kitu Systems, Inc. All rights reserved.
  * This source code and any compilation or derivative thereof is the proprietary
- * information of Grid2Home, Inc and is confidential in nature.
+ * information of Kitu Systems, Inc and is confidential in nature.
  *
  * \file          app_eder_client.h
  *
@@ -23,11 +23,11 @@
    $History: $
  */
 
-#ifndef   APP_EDER_CLIENT_H
-#define   APP_EDER_CLIENT_H
+#ifndef APP_EDER_CLIENT_H
+#define APP_EDER_CLIENT_H
 
-#include "sl_api.h"
 #include "kal_api.h"
+#include "sl_api.h"
 
 /*******************************************************************************
  * APP Client Functions
@@ -39,4 +39,8 @@ void EVCCSendDera(sl_eder_client_send_dera_req * req);
 void EVCCSendDersPeriodic();
 void EVCCDersFromVehicleCAN(sl_eder_client_send_ders_req * pReq);
 
-#endif  // APP_EDER_CLIENT_H
+extern u32_t dera_req_transaction_id;
+extern u32_t dercap_req_transaction_id;
+extern u32_t dersett_req_transaction_id;
+
+#endif // APP_EDER_CLIENT_H

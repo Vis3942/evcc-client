@@ -1,10 +1,10 @@
 /******************************************************************************
- * GRID2HOME SMART ENERGY 2
+ * KITU SYSTEMS SMART ENERGY 2
  *****************************************************************************/
 /**
- * Copyright (C) 2009 Grid2Home, Inc. All rights reserved.
+ * Copyright (C) 2009 Kitu Systems, Inc. All rights reserved.
  * This source code and any compilation or derivative thereof is the proprietary
- * information of Grid2Home, Inc and is confidential in nature.
+ * information of Kitu Systems, Inc and is confidential in nature.
  *
  * \file          app_meter_mirror_client.c
  *
@@ -23,15 +23,15 @@
    $History: $
  */
 
-#include "sl_api.h"
-#include <string.h>
-#include <stdio.h>
-#include "kal_api.h"
+#include "app_meter_mirror_client.h"
 #include "app_api.h"
 #include "app_config.h"
-#include "app_meter_mirror_client.h"
 #include "app_utils.h"
 #include "app_client.h"
+#include "kal_api.h"
+#include "sl_api.h"
+#include <stdio.h>
+#include <string.h>
 #include "utils.h"
 
 #if APP_CONFIG_METER_MIRROR_CLIENT_ENABLED
@@ -139,6 +139,7 @@ char volt_buf[1500];
 int volt_buf_len = 0;
 char freq_buf[1500];
 int freq_buf_len = 0;
+u32_t meter_req_transaction_id = 0;
 
 /*******************************************************************************
  * Local Functions
@@ -176,8 +177,8 @@ static void StoreMrIds(void)
   // appMeterMirrorClient.mupMrId[1] = 'u';
   // appMeterMirrorClient.mupMrId[2] = 'p';
 
-  KAL_Memcpy(appMeterMirrorClient.mupMrId, appLfdi, 8);
-  KAL_Memset(appMeterMirrorClient.mupMrId + 8, 0, 4);
+  KAL_Memcpy(appMeterMirrorClient.mupMrId, app_UtilsGetMyLfdi(), 8);
+  KAL_Memset(appMeterMirrorClient.mupMrId + 8, 1, 4);
 
   // appMeterMirrorClient.mupMrId[4] = (u8_t)(appSfdi >> 32);
   // appMeterMirrorClient.mupMrId[5] = (u8_t)(appSfdi >> 24);
@@ -319,8 +320,9 @@ static void SendMupReq(void)
 
   KAL_Memcpy(&pReq->mrGroup[0].rtype, &defaultRtype, sizeof(sl_cmn_rt_t));
 
-  pReq->transactionId = app_ClientGetTransactionID();
+  pReq->transactionId = app_ClientGenerateTransactionID();
   appMeterMirrorClient.pendingTransId = pReq->transactionId;
+  meter_req_transaction_id = pReq->transactionId;
 
   app_SendMail(SL_METER_MIRROR_CLIENT_SEND_MUP_REQ, pReq, length);
 }
@@ -344,7 +346,7 @@ void EVCCSetupMupReq(sl_meter_mirror_client_send_mup_req *pReq)
 
   KAL_Memcpy(pReq->mrGroup[0].mrId, appMeterMirrorClient.group0MrId, SL_XSD_MRID_LEN);
 
-  pReq->transactionId = app_ClientGetTransactionID();
+  pReq->transactionId = app_ClientGenerateTransactionID();
   appMeterMirrorClient.pendingTransId = pReq->transactionId;
 
   // Set server information    
@@ -412,9 +414,10 @@ void SendPendingMMRs(int x_skip)
       KAL_Memcpy(pReq, freq_buf, freq_buf_len);
       break;
     }
-    pReq->transactionId = app_ClientGetTransactionID();
+    pReq->transactionId = app_ClientGenerateTransactionID();
     appMeterMirrorClient.mmrInfo[ii].pendingTransId = pReq->transactionId;
     appMeterMirrorClient.mmrInfo[ii].pendingCnf = true;
+    meter_req_transaction_id = pReq->transactionId;
 
     // // Set server information    
     // pReq->serverSourceInfo.serverHandle = serverInd->serverHandle;
@@ -550,8 +553,9 @@ void EVCCMmrReq(sl_meter_mirror_client_send_mmr_req *pReq)
   }
   else // you can send the mmr req now
   {
-    pReq->transactionId = app_ClientGetTransactionID();
+    pReq->transactionId = app_ClientGenerateTransactionID();
     appMeterMirrorClient.mmrInfo[mmr_type_idx].pendingTransId = pReq->transactionId;
+    meter_req_transaction_id = pReq->transactionId;
 
     // // Set server information    
     // pReq->serverSourceInfo.serverHandle = serverInd->serverHandle;
@@ -585,6 +589,7 @@ static void HandleMupCnf(sl_meter_mirror_client_send_mup_cnf *pCnf)
   if (appMeterMirrorClient.pendingTransId == pCnf->transactionId)
   {
     appMeterMirrorClient.pendingTransId = 0;
+    meter_req_transaction_id = 0;
     if (pCnf->status == SL_CMN_RC_SUCCESS)
     {
       appMeterMirrorClient.mupExists = true;
@@ -607,7 +612,7 @@ static void HandleSendMmrCnf(sl_meter_mirror_client_send_mmr_cnf *pCnf)
   {
     appMeterMirrorClient.mmrInfo[MMR_TYPE_ACTIVEPOWER].pendingTransId = 0;
     appMeterMirrorClient.mmrInfo[MMR_TYPE_ACTIVEPOWER].pendingCnf = false;
-    
+    meter_req_transaction_id = 0;
     displayTime();
     if (pCnf->status == SL_CMN_RC_SUCCESS)
     {
@@ -624,6 +629,7 @@ static void HandleSendMmrCnf(sl_meter_mirror_client_send_mmr_cnf *pCnf)
   {
     appMeterMirrorClient.mmrInfo[MMR_TYPE_REACTIVEPOWER].pendingTransId = 0;
     appMeterMirrorClient.mmrInfo[MMR_TYPE_REACTIVEPOWER].pendingCnf = false;
+    meter_req_transaction_id = 0;
 
     if (pCnf->status == SL_CMN_RC_SUCCESS)
     {
@@ -640,6 +646,7 @@ static void HandleSendMmrCnf(sl_meter_mirror_client_send_mmr_cnf *pCnf)
   {
     appMeterMirrorClient.mmrInfo[MMR_TYPE_VOLTAGE].pendingTransId = 0;
     appMeterMirrorClient.mmrInfo[MMR_TYPE_VOLTAGE].pendingCnf = false;
+    meter_req_transaction_id = 0;
 
     if (pCnf->status == SL_CMN_RC_SUCCESS)
     {
@@ -656,6 +663,7 @@ static void HandleSendMmrCnf(sl_meter_mirror_client_send_mmr_cnf *pCnf)
   {
     appMeterMirrorClient.mmrInfo[MMR_TYPE_FREQUENCY].pendingTransId = 0;
     appMeterMirrorClient.mmrInfo[MMR_TYPE_FREQUENCY].pendingCnf = false;
+    meter_req_transaction_id = 0;
 
     if (pCnf->status == SL_CMN_RC_SUCCESS)
     {
@@ -679,30 +687,30 @@ static void HandleSendMmrCnf(sl_meter_mirror_client_send_mmr_cnf *pCnf)
  ******************************************************************************/
 void app_MeterMirrorClientHandleMail(kal_mail_id_t mailId, void *pMail)
 {
-  switch (mailId)
-  {
-  case SL_METER_MIRROR_CLIENT_SEND_MUP_CNF:
-    APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIROR_CLIENT_SEND_MUP_CNF");
-    app_LogStatus(((sl_meter_mirror_client_send_mup_cnf *)pMail)->status);
-    HandleMupCnf((sl_meter_mirror_client_send_mup_cnf *)pMail);
-    break;
+    switch (mailId)
+    {
+    case SL_METER_MIRROR_CLIENT_SEND_MUP_CNF:
+        APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_SEND_MUP_CNF");
+        app_LogStatus(((sl_meter_mirror_client_send_mup_cnf *)pMail)->status);
+        HandleMupCnf((sl_meter_mirror_client_send_mup_cnf *)pMail);
+        break;
 
-  case SL_METER_MIRROR_CLIENT_SEND_MMR_CNF:
-    APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_SEND_MMR_CNF");
-    app_LogStatus(((sl_meter_mirror_client_send_mmr_cnf *)pMail)->status);
-    HandleSendMmrCnf((sl_meter_mirror_client_send_mmr_cnf*) pMail);
-    break;
+    case SL_METER_MIRROR_CLIENT_SEND_MMR_CNF:
+        APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_SEND_MMR_CNF");
+        app_LogStatus(((sl_meter_mirror_client_send_mmr_cnf *)pMail)->status);
+        HandleSendMmrCnf((sl_meter_mirror_client_send_mmr_cnf*) pMail);
+        break;
 
-  case SL_METER_MIRROR_CLIENT_SERVER_IND:
-    APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_SERVER_IND");
-    HandleMeterMirrorServerInd((sl_meter_mirror_client_server_ind *)pMail);
-    break;
+    case SL_METER_MIRROR_CLIENT_SERVER_IND:
+        APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_SERVER_IND");
+        HandleMeterMirrorServerInd((sl_meter_mirror_client_server_ind *)pMail);
+        break;
 
-  case SL_METER_MIRROR_CLIENT_MUP_IND:
-    APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_MUP_IND");
-    APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_MUP_IND is not handled in this app");
-    break;
-  }
+    case SL_METER_MIRROR_CLIENT_MUP_IND:
+        APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_MUP_IND");
+        APP_LOG_INFO("app_MeterMirrorClientHandleMail: SL_METER_MIRROR_CLIENT_MUP_IND is not handled in this app");
+        break;
+    }
 }
 
 #endif // APP_CONFIG_METER_MIRROR_CLIENT_ENABLED
