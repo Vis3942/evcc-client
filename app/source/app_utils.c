@@ -42,6 +42,7 @@
 #include "app_utils.h"
 #include "kal_api.h"
 #include "psal_assert.h"
+#include "usock_proto.h"
 
 /*******************************************************************************
  * For Iotecha board, the compiler could not find strnlen()
@@ -307,6 +308,7 @@ void app_LogInstanceIds(u8_t numInstanceIDs, sl_obj_instance_id_t instanceIDs[])
  */
 void app_LogStatus(i8_t status)
 {
+    int send_loss_comm = 0;
     switch (status)
     {
     case SL_CMN_RC_SUCCESS:
@@ -320,6 +322,7 @@ void app_LogStatus(i8_t status)
         break;
     case SL_CMN_RC_FAIL:
         APP_LOG_ERROR("Status = Err failed");
+        send_loss_comm = 1;
         break;
     case SL_CMN_RC_FILE_EXISTS:
         APP_LOG_ERROR("Status = Err file exists");
@@ -329,6 +332,7 @@ void app_LogStatus(i8_t status)
         break;
     case SL_CMN_RC_NOT_ALLOWED:
         APP_LOG_ERROR("Status = Err not allowed");
+        send_loss_comm = 1;
         break;
     case SL_CMN_RC_FS_FULL:
         APP_LOG_ERROR("Status = File system full");
@@ -338,9 +342,11 @@ void app_LogStatus(i8_t status)
         break;
     case SL_CMN_RC_TIMEOUT:
         APP_LOG_ERROR("Status = Err timeout");
+        send_loss_comm = 1;
         break;
     case SL_CMN_RC_NO_SERVER:
         APP_LOG_ERROR("Status = Err no server");
+        send_loss_comm = 1;
         break;
     case SL_CMN_RC_INVALID_PARAMETERS:
         APP_LOG_INFO("Status = Err invalid parameters");
@@ -351,6 +357,10 @@ void app_LogStatus(i8_t status)
     default:
         APP_LOG_ERROR("Status = Unknown");
         break;
+    }
+    if (send_loss_comm == 1) 
+    {
+        send_communication_status((u8_t)0);
     }
 }
 
