@@ -291,7 +291,9 @@ void app_ClientHandleDCInd(sl_der_client_dc_ind *pInd)
   if (found == 0) 
   {
     // send to CAN2SEP2 app
-    send_curve_data(pInd->curve);
+    //send_curve_data(pInd->curve);
+    // sending the whole indication as it contains the derc mrid 
+    send_curve_data(pInd);
     KAL_Memcpy(&(curve_mrids_recvd[curve_mrids_count][0]), pInd->curve.mrId, SL_XSD_MRID_LEN);
     if (curve_mrids_count < (MAX_STORED_CURVE_COUNT-1)) 
     {

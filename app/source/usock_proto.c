@@ -514,15 +514,23 @@ void send_freq_droop_data(sl_xsd_freq_droop_t freq_droop) {
   fprintf(stdout, "Sent Freq Droop Data to CAN2SEP2 app [id: %d] => (Len: %d) \n", CAN2SEP_FREQ_DROOP_T_ID, buf_wr_len);
 }
 
-void send_curve_data(sl_der_curve_t curve) {
+//void send_curve_data(sl_der_curve_t curve) {
+// sending dc_ind as opposed to curve only since it contains derc mrdi
+void send_curve_data(sl_der_client_dc_ind * curveInd) {
+  //sl_der_client_dc_ind
   // CAN2SEP_DER_CURVE_T_ID
   u8_t buf_wr[2048] ;
   int buf_wr_len = 0;
-  buf_wr_len = sizeof(curve);
-  memcpy(buf_wr, &curve, buf_wr_len);
+  buf_wr_len = sizeof(*curveInd);
+  memcpy(buf_wr, curveInd, buf_wr_len);
   send_message((void *)buf_wr, buf_wr_len, (u32_t) CAN2SEP_DER_CURVE_T_ID);
   fprintf(stdout, "Sent Curve [Type: %d] Data to CAN2SEP2 app [Curve: curve] [id: %d] => (Len: %d) \n", 
-      curve.curveType, CAN2SEP_DER_CURVE_T_ID, buf_wr_len);
+      curveInd->curve.curveType, CAN2SEP_DER_CURVE_T_ID, buf_wr_len);
+  //debug only
+  fprintf(stdout, "Data first four bytes, and last 4 bytes are: \n");
+  fprintf(stdout, "%2x, %2x, %2x, %2x, ......., %2x, %2x, %2x, %2x\n",
+    buf_wr[0], buf_wr[1], buf_wr[2], buf_wr[3], 
+    buf_wr[buf_wr_len-4], buf_wr[buf_wr_len-3], buf_wr[buf_wr_len-2], buf_wr[buf_wr_len-1]);
 }
 
 void send_communication_status(u8_t status)

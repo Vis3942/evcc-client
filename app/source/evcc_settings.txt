@@ -1,3 +1,4 @@
 derp_pull_secs=30
 derc_pull_secs=30
 derc_pull_offset_secs=10
+ders_rate_secs=0

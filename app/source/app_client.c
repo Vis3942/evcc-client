@@ -375,6 +375,7 @@ extern void app_DerpPulling(void);
 void app_ClientProcessing(void)
 {
   int pending_send_to_app_layer;
+  static u16_t dersTimer = 0;
 #ifdef APP_PRELOAD_DEMO
 
 #if APP_CONFIG_EPS_CLIENT_ENABLED
@@ -407,7 +408,19 @@ void app_ClientProcessing(void)
   pending_send_to_app_layer = ps_epwrstat_transaction_id + dera_req_transaction_id + dercap_req_transaction_id + dersett_req_transaction_id + meter_req_transaction_id;
   // post status every second as required by SUNSPEC Profile
   if (pending_send_to_app_layer == 0){
-    EVCCSendDersPeriodic();
+    if (ders_rate_secs == 0)
+    {
+        EVCCSendDersPeriodic();
+    }
+    else 
+    {
+        dersTimer++;
+        if (dersTimer >= ders_rate_secs)
+        {
+            EVCCSendDersPeriodic();
+            dersTimer = 0;
+        }
+    }
   }
   else 
   {

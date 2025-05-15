@@ -38,6 +38,7 @@ extern int g_transaction_id;
 extern int derp_pull_secs;
 extern int derc_pull_secs;
 extern int derc_pull_offset_secs; // to prevent DERC and 'DERP pull to happen at the same time
+extern int ders_rate_secs;
 
 #define INIT_SECS_BEFORE_EVENT 30
 #define DDERC_PERIODIC_SECS 45

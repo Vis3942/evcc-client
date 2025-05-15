@@ -30,6 +30,7 @@ int g_transaction_id = 0;
 int derp_pull_secs=30;
 int derc_pull_secs=30;
 int derc_pull_offset_secs=15;
+int ders_rate_secs=1;
 
 // for simulate vehdata
 #define DEFAULT_MMR_DESCRIPTION    "Stellantis PEV Data"
@@ -89,6 +90,7 @@ void read_parameters_from_file(char * param_file_name)
   derp_pull_secs = 30;
   derc_pull_secs = 30;
   derc_pull_offset_secs = 10;
+  ders_rate_secs = 0;
   FILE *file = fopen (param_file_name, "r");
   size_t tmpst;
   if (file != NULL)
@@ -116,6 +118,12 @@ void read_parameters_from_file(char * param_file_name)
         tmpst = strlen(cfline);
         cfline[tmpst-1] = '\0';
         derc_pull_offset_secs = atoi(cfline);
+      }
+      else if (startsWith(line, "ders_rate_secs"))
+      {
+        tmpst = strlen(cfline);
+        cfline[tmpst-1] = '\0';
+        ders_rate_secs = atoi(cfline);
       }
 
     } // End while

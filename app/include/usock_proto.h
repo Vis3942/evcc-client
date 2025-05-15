@@ -24,7 +24,7 @@ void test_client_send_derc_ind();
 void send_der_setting(sl_der_settings_t der_sett );
 void send_default_derc(sl_der_default_derc_t def_derc);
 void send_freq_droop_data(sl_xsd_freq_droop_t freq_droop);
-void send_curve_data(sl_der_curve_t curve);
+void send_curve_data(sl_der_client_dc_ind * curveInd);
 void send_communication_status(u8_t status);
 void send_derc_ind(sl_der_client_derc_ind * derc_ind);
 
